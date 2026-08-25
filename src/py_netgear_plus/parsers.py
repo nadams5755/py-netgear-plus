@@ -1204,12 +1204,21 @@ class GS31xSeries(PageParser):
         tree = html.fromstring(page.content)
         xtree_port_statusses = tree.xpath('//span[contains(@class,"status-on-port")]')
         xtree_port_attributes = tree.xpath('//div[@class="port-status"]')
-        if len(xtree_port_statusses) != ports or len(xtree_port_attributes) != ports:
+        xtree_port_names = tree.xpath('//span[@class="port-name"]/span[@class="name"]')
+        if (
+            len(xtree_port_statusses) != ports
+            or len(xtree_port_attributes) != ports
+            or len(xtree_port_names) != ports
+        ):
             message = (
-                "Port count mismatch: Expected %s, got %s (status) and %s (attributes)",
+                (
+                    "Port count mismatch: Expected %s, got %s (status), "
+                    "%s (attributes) and %s (names)"
+                ),
                 ports,
                 len(xtree_port_statusses),
                 len(xtree_port_attributes),
+                len(xtree_port_names),
             )
             raise NetgearPlusPageParserError(message)
         status_by_port = {}
@@ -1219,8 +1228,10 @@ class GS31xSeries(PageParser):
             port_attributes = xtree_port_attributes[port_nr0].xpath("./div/div/p")
             modus_speed_text = port_attributes[1].text
             connection_speed_text = strip_duplex(port_attributes[3].text)
+            description_text = xtree_port_names[port_nr0].text or ""
 
             status_by_port[port_nr] = {
+                "description": description_text,
                 "status": port_state_text,
                 "modus_speed": modus_speed_text,
                 "connection_speed": connection_speed_text,
