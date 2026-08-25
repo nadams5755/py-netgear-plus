@@ -81,6 +81,14 @@ def strip_duplex(text: str) -> str:
     return re.sub(r"full|half", "", text, flags=re.IGNORECASE).strip()
 
 
+def get_elem_text(elems: list, idx: int) -> str:
+    """Return the text of the elem at idx, or "" if missing/empty."""
+    try:
+        return elems[idx].text or ""
+    except IndexError:
+        return ""
+
+
 # convert to int
 def convert_to_int(
     lst: list,
@@ -605,6 +613,9 @@ class GS108Ev4(PageParser):
         for port_nr in range(ports):
             try:
                 port = blocks[port_nr].xpath('.//input[@class="port"]/@value')[0]
+                description_text = blocks[port_nr].xpath(
+                    './/input[contains(@class, "portName")]/@value'
+                )[0]
                 status_text = blocks[port_nr].xpath(
                     './/span[contains(@class, "padding_r_18")]/span/text()'
                 )[0]
@@ -622,6 +633,9 @@ class GS108Ev4(PageParser):
                     "100M full",
                 ][int(speed)]
             except (IndexError, AttributeError):
+                description_text = self.port_status.get(port_nr + 1, {}).get(
+                    "description", None
+                )
                 status_text = self.port_status.get(port_nr + 1, {}).get("status", None)
                 modus_speed_text = self.port_status.get(port_nr + 1, {}).get(
                     "modus_speed", None
@@ -630,6 +644,7 @@ class GS108Ev4(PageParser):
                     "connection_speed", None
                 )
             status_by_port[int(port)] = {
+                "description": description_text,
                 "status": status_text,
                 "modus_speed": modus_speed_text,
                 "connection_speed": connection_speed_text,
@@ -768,11 +783,13 @@ class EMxSeries(PageParser):
                 raise NetgearPlusPageParserError(message) from error
 
             xtree_port_attributes = element.xpath("./td")
+            description_text = get_elem_text(xtree_port_attributes, 2)
             port_state_text = xtree_port_attributes[3].text.strip()
             modus_speed_text = xtree_port_attributes[4].text.strip()
             connection_speed_text = strip_duplex(xtree_port_attributes[5].text)
 
             status_by_port[port_nr] = {
+                "description": description_text,
                 "status": port_state_text,
                 "modus_speed": modus_speed_text,
                 "connection_speed": connection_speed_text,
@@ -877,6 +894,7 @@ class GS30xSeries(PageParser):
         tree = html.fromstring(page.content)
 
         status_by_port = {}
+        description_elems = tree.xpath('//input[contains(@class, "portName")]')
         for port0 in range(ports):
             port_nr = port0 + 1
             xtree_port = tree.xpath(f'//div[@name="isShowPot{port_nr}"]')[0]
@@ -888,8 +906,13 @@ class GS30xSeries(PageParser):
             connection_speed_text = strip_duplex(
                 tree.xpath('//input[@class="LinkedSpeed"]')[port0].value
             )
+            try:
+                description_text = description_elems[port0].value or ""
+            except IndexError:
+                description_text = ""
 
             status_by_port[port_nr] = {
+                "description": description_text,
                 "status": port_state_text,
                 "modus_speed": modus_speed_text,
                 "connection_speed": connection_speed_text,
@@ -1360,11 +1383,14 @@ class JGSxxxSeries(PageParser):
         status_by_port = {}
         for status in result:
             port_nr = int(status[0]) + 1
-            modus_speed_text = status[1].split("?")[3]
-            port_state_text = status[1].split("?")[2]
-            connection_speed_text = strip_duplex(status[1].split("?")[4])
+            fields = status[1].split("?")
+            description_text = fields[1]
+            modus_speed_text = fields[3]
+            port_state_text = fields[2]
+            connection_speed_text = strip_duplex(fields[4])
 
             status_by_port[port_nr] = {
+                "description": description_text,
                 "status": port_state_text,
                 "modus_speed": modus_speed_text,
                 "connection_speed": connection_speed_text,
@@ -1472,7 +1498,7 @@ class GSS108E(PageParser):
         status_by_port = {}
 
         tree = html.fromstring(page.content)
-        _port_elems = tree.xpath('//tr[@class="portID"]/td[3]')
+        description_elems = tree.xpath('//tr[@class="portID"]/td[3]')
         portstatus_elems = tree.xpath('//tr[@class="portID"]/td[4]')
         portspeed_elems = tree.xpath('//tr[@class="portID"]/td[5]')
         portconnectionspeed_elems = tree.xpath('//tr[@class="portID"]/td[6]')
@@ -1480,6 +1506,8 @@ class GSS108E(PageParser):
         # localisation mappings from javascript object "lang" in the page source
         # and developer console, e.g. lang["ss022"] = "Up"
         for port_nr in range(ports):
+            # Port Description - column 3
+            description_text = get_elem_text(description_elems, port_nr)
             # Port Status - column 4
             try:
                 portstatus_text = portstatus_elems[port_nr].text.strip()
@@ -1524,6 +1552,7 @@ class GSS108E(PageParser):
             except (IndexError, AttributeError):
                 connection_speed_text = ""
             status_by_port[port_nr + 1] = {
+                "description": description_text,
                 "status": status_text,
                 "modus_speed": modus_speed_text,
                 "connection_speed": connection_speed_text,
@@ -1578,6 +1607,7 @@ class MS3xxSeries(PageParser):
                 "disabled",
             )
             status_by_port[port_no] = {
+                "description": str(port_conf.get("portName", "")),
                 "status": "Up" if is_connected else "Down",
                 "modus_speed": str(port_conf.get("linkSpeedConf", "")),
                 "connection_speed": connection_speed,
