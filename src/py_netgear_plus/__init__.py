@@ -1425,6 +1425,9 @@ class NetgearSwitchConnector:
                 switch_data[f"port_{port_number}_{key}_mbytes"] = (
                     _from_bytes_to_megabytes(current_data[f"port_{port_number}_{key}"])
                 )
+            switch_data[f"port_{port_number}_crc_errors"] = current_data[
+                f"port_{port_number}_crc_errors"
+            ]
 
         switch_data["sum_port_traffic_rx"] = _from_bytes_to_megabytes(
             current_data["sum_port_traffic_rx"]
@@ -1441,10 +1444,6 @@ class NetgearSwitchConnector:
         switch_data["sum_port_speed_io"] = _from_bytes_to_megabytes(
             current_data["sum_port_speed_io"]
         )
-
-        switch_data[f"port_{port_number}_crc_errors"] = current_data[
-            f"port_{port_number}_crc_errors"
-        ]
         switch_data["sum_port_crc_errors"] = current_data["sum_port_crc_errors"]
         return switch_data
 
